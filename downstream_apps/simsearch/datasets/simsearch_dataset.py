@@ -168,7 +168,9 @@ class SimSearchSDataset(HelioNetCDFDataset):
         coords=df[['x0','x1','y0','y1']].iloc[idx].to_list()
         ss = sample['ts']
         key = np.random.choice(list(self.ADDICT.keys()))
-        ss_t, coords_t = perform_augmentation(ss[:,0,:,:], coords, np.array(self.ADDICT[key]).reshape(2, 2)) #Xt=AX
+        ss_t_0, coords_t = perform_augmentation(ss[:,0,:,:], coords, np.array(self.ADDICT[key]).reshape(2, 2)) #Xt=AX
+        ss_t_1, _ = perform_augmentation(ss[:,1,:,:], coords, np.array(self.ADDICT[key]).reshape(2, 2))
+        ss_t = np.stack((ss_t_0, ss_t_1), axis=1)
         return ss, coords, ss_t, coords_t
 
 
