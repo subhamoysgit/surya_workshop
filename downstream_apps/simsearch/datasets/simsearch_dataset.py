@@ -6,6 +6,21 @@ import cv2
 from einops import rearrange
 
 def perform_augmentation(ss, x, A):
+    """Apply a centered rotation or reflection to an image stack and its bounding box.
+
+    ### Parameters
+    - `ss`: NumPy image stack with shape `(channels, height, width)`. Use
+      multiple channels so OpenCV preserves the channel dimension.
+    - `x`: Bounding-box coordinates in `(x0, x1, y0, y1)` order, where `x`
+      denotes columns and `y` denotes rows.
+    - `A`: NumPy affine matrix with shape `(2, 2)`, such as rotations or 
+    reflections in `SimSearchSDataset.ADDICT`.
+
+    ### Returns
+    `(ss_t, bounds)` containing the transformed image stack with the
+    same shape as `ss` and integer bounds `(x0_t, x1_t, y0_t, y1_t)`.
+    """
+
     _, height, width = ss.shape
     center = np.array([(width - 1) / 2, (height - 1) / 2])
     x_ = np.array([[x[0], x[1]],[x[2], x[3]]]) - center[0]
@@ -19,13 +34,6 @@ def perform_augmentation(ss, x, A):
                        flags=cv2.INTER_LINEAR,
                        borderMode=cv2.BORDER_CONSTANT,
                        borderValue=0,)
-    # ss_t = np.stack([
-    #     cv2.warpAffine(channel.astype(np.float32),
-    #                    M, dsize=(width, height),
-    #                    flags=cv2.INTER_LINEAR,
-    #                    borderMode=cv2.BORDER_CONSTANT,
-    #                    borderValue=0,)
-    #     for channel in ss])
     return rearrange(ss_t, 'h w c -> c h w'), (x0_t, x1_t, y0_t, y1_t)
 
 class SimSearchSDataset(HelioNetCDFDataset):
@@ -68,90 +76,20 @@ class SimSearchSDataset(HelioNetCDFDataset):
 
     def __init__(
         self,
-        # Downstream-specific parameters
-        # return_surya_stack: bool = True,
-        # max_number_of_samples: int | None = None,
-        # label_transform: Callable[[pd.Series], pd.Series] | None = None,
         return_sharp_bbox: bool = False,
         ds_sim_index_path: str | None = None,
-        # ds_time_column: str | None = None,
-        # ds_time_tolerance: str | None = None,
-        # ds_match_direction: Literal["forward", "backward", "nearest"] = "forward",
         # All HelioNetCDFDataset parameters (index_path, scalers, channels, s3_*, etc.)
         **kwargs,
     ):
-        # if ds_match_direction not in ["forward", "backward", "nearest"]:
-        #     raise ValueError("ds_match_direction must be one of 'forward', 'backward', or 'nearest'")
-
-        # load_forecast_frames defaults to False here: flare forecasting supplies its
-        # own labels, so future Surya frames never need to be fetched from disk/S3.
         kwargs.setdefault("load_forecast_frames", False)
         super().__init__(**kwargs)
         self.return_sharp_bbox = return_sharp_bbox
 
-
-
-
-        # self.return_surya_stack = return_surya_stack
-
         # # Load ds index and find intersection with Surya index
         if ds_sim_index_path is not None:
             self.ds_index = pd.read_csv(ds_sim_index_path)
-        # else:
-        #     raise ValueError("ds_flare_index_path must be provided for FlareDSDataset")
+            self.ds_index["timestep"] = pd.to_datetime(self.ds_index["timestep"], utc=True)
 
-        # self.ds_index["ds_index"] = pd.to_datetime(
-        #     self.ds_index[ds_time_column]
-        # ).values.astype("datetime64[ns]")
-        # self.ds_index.sort_values("ds_index", inplace=True)
-
-        # # Apply label transform if provided; otherwise use raw intensity values.
-        # if label_transform is not None:
-        #     self.ds_index["normalized_intensity"] = label_transform(self.ds_index["intensity"])
-        # else:
-        #     self.ds_index["normalized_intensity"] = self.ds_index["intensity"]
-
-        # # Create Surya valid indices and find closest match to DS index
-        # self.df_valid_indices = pd.DataFrame(
-        #     {"valid_indices": self.valid_indices}
-        # ).sort_values("valid_indices")
-        # self.df_valid_indices = pd.merge_asof(
-        #     self.df_valid_indices,
-        #     self.ds_index,
-        #     right_on="ds_index",
-        #     left_on="valid_indices",
-        #     direction=ds_match_direction,
-        # )
-        # # Remove duplicates keeping closest match
-        # self.df_valid_indices["index_delta"] = np.abs(
-        #     self.df_valid_indices["valid_indices"] - self.df_valid_indices["ds_index"]
-        # )
-        # self.df_valid_indices = self.df_valid_indices.sort_values(
-        #     ["ds_index", "index_delta"]
-        # )
-        # self.df_valid_indices.drop_duplicates(
-        #     subset="ds_index", keep="first", inplace=True
-        # )
-        # # Enforce a maximum time tolerance for matches
-        # if ds_time_tolerance is not None:
-        #     self.df_valid_indices = self.df_valid_indices.loc[
-        #         self.df_valid_indices["index_delta"] <= pd.Timedelta(ds_time_tolerance),
-        #         :,
-        #     ]
-        #     if len(self.df_valid_indices) == 0:
-        #         raise ValueError("No intersection between Surya and DS indices")
-
-        # # Override valid indices variables to reflect matches between Surya and DS
-        # self.valid_indices = [
-        #     pd.Timestamp(date) for date in self.df_valid_indices["valid_indices"]
-        # ]
-        # self.adjusted_length = len(self.valid_indices)
-        # self.df_valid_indices.set_index("valid_indices", inplace=True)
-
-        # if max_number_of_samples is not None and max_number_of_samples < self.adjusted_length:
-        #     self.valid_indices = self.valid_indices[:max_number_of_samples]
-        #     self.df_valid_indices = self.df_valid_indices.iloc[:max_number_of_samples]
-        #     self.adjusted_length = max_number_of_samples
 
     def __len__(self):
         return self.adjusted_length
@@ -169,10 +107,9 @@ class SimSearchSDataset(HelioNetCDFDataset):
             ``HelioNetCDFDataset.__getitem__`` (ts, time_delta_input, lead_time_delta, etc.).
         """
         sample = super().__getitem__(idx=idx)
-        # sample["forecast"] = self.df_valid_indices.iloc[idx]["normalized_intensity"].astype(np.float32)
-        # sample["ds_index"] = self.df_valid_indices["ds_index"].iloc[idx].isoformat()
-        df = self.ds_index
-        coords=df[['x0','x1','y0','y1']].iloc[idx].to_list()
+        timestep = pd.to_datetime(self.valid_indices[idx], utc=True)
+        matches = self.ds_index.loc[self.ds_index["timestep"].eq(timestep)]
+        coords = matches[["x0", "x1", "y0", "y1"]].iloc[0].astype(int).to_list()
         ss = sample['ts']
         mask = np.zeros_like(ss[:1,:,:,:])
         mask[:,:,coords[2]:coords[3],coords[0]:coords[1]] = 1
@@ -182,5 +119,5 @@ class SimSearchSDataset(HelioNetCDFDataset):
         ss_t_1, _ = perform_augmentation(ss[:,1,:,:], coords, np.array(self.ADDICT[key]).reshape(2, 2))
         ss_t = np.stack((ss_t_0, ss_t_1), axis=1)
         if self.return_sharp_bbox:
-            return ss, ss_t, coords, coords_t
-        return ss, ss_t
+            return ss, ss_t, coords, coords_t, key, timestep
+        return ss, ss_t, key, timestep
