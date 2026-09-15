@@ -3,6 +3,7 @@ import pandas as pd
 from typing import Callable, Literal
 from workshop_infrastructure.datasets.helio import HelioNetCDFDataset
 import cv2
+from einops import rearrange
 
 def perform_augmentation(ss, x, A):
     _, height, width = ss.shape
@@ -13,15 +14,19 @@ def perform_augmentation(ss, x, A):
     x1_t, y1_t = int(np.max(x_t[0,:])), int(np.max(x_t[1,:]))
     translation = center - A @ center
     M = np.column_stack((A, translation)).astype(np.float32)
-
-    ss_t = np.stack([
-        cv2.warpAffine(channel.astype(np.float32),
+    ss_t = cv2.warpAffine(rearrange(ss, 'c h w -> h w c'),
                        M, dsize=(width, height),
                        flags=cv2.INTER_LINEAR,
                        borderMode=cv2.BORDER_CONSTANT,
                        borderValue=0,)
-        for channel in ss])
-    return ss_t, (x0_t, x1_t, y0_t, y1_t)
+    # ss_t = np.stack([
+    #     cv2.warpAffine(channel.astype(np.float32),
+    #                    M, dsize=(width, height),
+    #                    flags=cv2.INTER_LINEAR,
+    #                    borderMode=cv2.BORDER_CONSTANT,
+    #                    borderValue=0,)
+    #     for channel in ss])
+    return rearrange(ss_t, 'h w c -> c h w'), (x0_t, x1_t, y0_t, y1_t)
 
 class SimSearchSDataset(HelioNetCDFDataset):
     """
@@ -67,6 +72,7 @@ class SimSearchSDataset(HelioNetCDFDataset):
         # return_surya_stack: bool = True,
         # max_number_of_samples: int | None = None,
         # label_transform: Callable[[pd.Series], pd.Series] | None = None,
+        return_sharp_bbox: bool = False,
         ds_sim_index_path: str | None = None,
         # ds_time_column: str | None = None,
         # ds_time_tolerance: str | None = None,
@@ -81,6 +87,7 @@ class SimSearchSDataset(HelioNetCDFDataset):
         # own labels, so future Surya frames never need to be fetched from disk/S3.
         kwargs.setdefault("load_forecast_frames", False)
         super().__init__(**kwargs)
+        self.return_sharp_bbox = return_sharp_bbox
 
 
 
@@ -167,30 +174,13 @@ class SimSearchSDataset(HelioNetCDFDataset):
         df = self.ds_index
         coords=df[['x0','x1','y0','y1']].iloc[idx].to_list()
         ss = sample['ts']
+        mask = np.zeros_like(ss[:1,:,:,:])
+        mask[:,:,coords[2]:coords[3],coords[0]:coords[1]] = 1
+        ss = np.concatenate((ss, mask), axis=0)
         key = np.random.choice(list(self.ADDICT.keys()))
         ss_t_0, coords_t = perform_augmentation(ss[:,0,:,:], coords, np.array(self.ADDICT[key]).reshape(2, 2)) #Xt=AX
         ss_t_1, _ = perform_augmentation(ss[:,1,:,:], coords, np.array(self.ADDICT[key]).reshape(2, 2))
         ss_t = np.stack((ss_t_0, ss_t_1), axis=1)
-        return ss, coords, ss_t, coords_t
-
-
-
-
-
-
-# files = glob.glob('/d0/subhamoy/sharps/surya_embeddings/*.nc')
-# ds = xr.open_dataset(files[0])
-# ss = read_(ds.attrs['surya_file'])
-# x0, y0, x1, y1 = ds.attrs['x0'], ds.attrs['y0'], ds.attrs['x1'], ds.attrs['y1']
-# n = random.randint(0, 7)  # Includes both 0 and 7
-# key = list(As.keys())[n]
-# print(key)
-# A = np.array(As[key]).reshape(2, 2) #A is affine matrix
-# ss_t, (x0_t, x1_t, y0_t, y1_t) = perform_augmentation(ss, (x0, x1, y0, y1), A) #Xt=AX
-
-# plt.figure()
-# plt.subplot(1,2,1)
-# plt.imshow(ss[11,y0:y1, x0:x1], cmap='gray', vmin=-100, vmax=100)
-# plt.subplot(1,2,2)
-# plt.imshow(ss_t[11,y0_t:y1_t, x0_t:x1_t], cmap='gray', vmin=-100, vmax=100)
-# plt.savefig('surya_aug.png')
+        if self.return_sharp_bbox:
+            return ss, ss_t, coords, coords_t
+        return ss, ss_t
