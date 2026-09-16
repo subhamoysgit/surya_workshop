@@ -16,7 +16,7 @@
 #   ... --max-epochs 5
 # =============================================================================
 
-job_id: solar_flare_forecasting
+job_id: simsearch
 
 
 # -----------------------------------------------------------------------------
@@ -25,7 +25,7 @@ job_id: solar_flare_forecasting
 data:
   # -- Paths --
   train_data_path: /d0/amunozj/git_repos/surya_workshop/data/indices/surya_aws_s3_train.csv
-  valid_data_path: '/d0/subhamoy/sharps/surya_subset_index.csv' #/d0/amunozj/git_repos/surya_workshop/data/indices/surya_aws_s3_val.csv
+  valid_data_path: /d0/bjha/data/surya/workshop2026/indices/simsearch_surya_sharp_indices.csv #'/d0/subhamoy/sharps/surya_subset_index.csv' #/d0/amunozj/git_repos/surya_workshop/data/indices/surya_aws_s3_val.csv
   scalers_path: /d0/amunozj/git_repos/surya_workshop/downstream_apps/template/assets/scalers.yaml
 
   # -- Input channels and temporal sampling --
@@ -142,5 +142,5 @@ output:
 # Logging
 # -----------------------------------------------------------------------------
 logging:
-  wandb_project: template_flare_regression
-  wandb_entity: null      # WandB team/org name; null to log to your personal account
+  wandb_project: simsearch_surya
+  wandb_entity: surya-ws2      # WandB team/org name; null to log to your personal account
