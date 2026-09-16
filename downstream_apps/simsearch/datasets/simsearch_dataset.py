@@ -76,14 +76,12 @@ class SimSearchSDataset(HelioNetCDFDataset):
 
     def __init__(
         self,
-        return_sharp_bbox: bool = False,
         ds_sim_index_path: str | None = None,
         # All HelioNetCDFDataset parameters (index_path, scalers, channels, s3_*, etc.)
         **kwargs,
     ):
         kwargs.setdefault("load_forecast_frames", False)
         super().__init__(**kwargs)
-        self.return_sharp_bbox = return_sharp_bbox
 
         # # Load ds index and find intersection with Surya index
         if ds_sim_index_path is not None:
@@ -118,6 +116,10 @@ class SimSearchSDataset(HelioNetCDFDataset):
         ss_t_0, coords_t = perform_augmentation(ss[:,0,:,:], coords, np.array(self.ADDICT[key]).reshape(2, 2)) #Xt=AX
         ss_t_1, _ = perform_augmentation(ss[:,1,:,:], coords, np.array(self.ADDICT[key]).reshape(2, 2))
         ss_t = np.stack((ss_t_0, ss_t_1), axis=1)
-        if self.return_sharp_bbox:
-            return ss, ss_t, coords, coords_t, key, timestep
-        return ss, ss_t, key, timestep
+        return {'ts':ss, 
+                'ts_aug': ss_t,
+                'bbox':coords,
+                'bbox_aug':coords_t, 
+                'time_delta_input': sample['time_delta_input'],
+                'key': key} 
+                #'tstep': timestep}
