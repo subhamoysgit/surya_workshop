@@ -106,7 +106,7 @@ lit_model = SimsearchLightningModule(model, metrics,
                                      lr=cfg.learning_rate,
                                      batch_size=2)
 project_name = cfg.wandb_project
-run_name = "baseline_simsearch_bs1"  # give your run a descriptive name
+run_name = "baseline_simsearch_bs2"  # give your run a descriptive name
 
 wandb_logger = WandbLogger(
     entity=cfg.wandb_entity,  # set wandb_entity in the config; null = personal account
@@ -133,7 +133,7 @@ trainer = L.Trainer(
 
 train_data_loader = DataLoader(
                 dataset=train_dataset,
-                batch_size=1,
+                batch_size=2,
                 num_workers=0
             )
 trainer.fit(lit_model, train_data_loader)
