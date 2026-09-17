@@ -139,7 +139,7 @@ class SimsearchLightningModule(L.LightningModule):
             raise ValueError("loss_dict is empty; cannot compute a scalar loss.")
         return loss
 
-    def forward(self, batch: dict) -> torch.Tensor:
+    def forward(self, x: dict) -> torch.Tensor:
         """
         Forward pass used by Lightning and by explicit calls in steps.
 
@@ -153,7 +153,7 @@ class SimsearchLightningModule(L.LightningModule):
         torch.Tensor
             Model predictions for the batch.
         """
-        return self.model(batch)
+        return self.model(x)
 
     def training_step(self, batch: Dict[str, Any], batch_idx: int) -> torch.Tensor:
         """
@@ -185,11 +185,14 @@ class SimsearchLightningModule(L.LightningModule):
         torch.Tensor
             The scalar training loss used for backpropagation.
         """
-
+        batch1, batch2 = batch
         if self.preprocess_fn is not None:
-            batch = self.preprocess_fn(batch)
-        e, e_ = self(batch)
-        training_losses, training_loss_weights = self.training_loss(e, e_)
+            batch1 = self.preprocess_fn(batch1)
+            batch2 = self.preprocess_fn(batch2)
+            
+        e1 = self(batch1)
+        e2= self(batch2)
+        training_losses, training_loss_weights = self.training_loss(e1, e2)
         loss = self._combine_losses(training_losses, training_loss_weights)
 
         # Log aggregate loss and component losses.

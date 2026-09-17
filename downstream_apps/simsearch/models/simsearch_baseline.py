@@ -79,10 +79,6 @@ class SimSuryaModel(nn.Module):
         tx0, ty0 = x0 // 16, y0 // 16
         tx1, ty1 = (x1 + 16 - 1) // 16, (y1 + 16 - 1) // 16
         
-        x0_, x1_, y0_, y1_ = x['bbox_aug']
-        tx0_, ty0_ = x0_ // 16, y0_ // 16
-        tx1_, ty1_ = (x1_ + 16 - 1) // 16, (y1_ + 16 - 1) // 16
-        
         mask = x['ts'][:, -1, 0, :, :]
         ws = F.avg_pool2d(mask[:, None].float(),
                           kernel_size=16,
@@ -90,24 +86,13 @@ class SimSuryaModel(nn.Module):
         ws = (ws > 0.5).to(torch.float32)
         ws = ws.unsqueeze(-1)  
         
-        mask_aug = x['ts_aug'][:, -1, 0, :, :]
-        ws_aug = F.avg_pool2d(mask_aug[:, None].float(),
-                              kernel_size=16,
-                              stride=16,)[:, 0]  # (B, gy, gx)
-        ws_aug = (ws_aug > 0.5).to(torch.float32)
-        ws_aug = ws_aug.unsqueeze(-1)  
-        
         with torch.no_grad():
             token = self.model.embedding(x['ts'][:,:-1,...], x['time_delta_input'])
             token = self.model.backbone(token)
-            token_aug = self.model.embedding(x['ts_aug'][:,:-1,...], x['time_delta_input'])
-            token_aug = self.model.backbone(token_aug)
             grid = token.reshape(-1, gy, gx, token.shape[-1])
-            grid_aug = token_aug.reshape(-1, gy, gx, token_aug.shape[-1])
             if self.bbox:
                 grid = torch.mean(grid[:,ty0:ty1, tx0:tx1,:], axis=(1,2))
-                grid_aug = torch.mean(grid_aug[:,ty0_:ty1_, tx0_:tx1_,:], axis=(1,2))
-                return grid, grid_aug
+                return grid
             
         # (B, gy, gx, 1)
             grid = (
@@ -115,8 +100,4 @@ class SimSuryaModel(nn.Module):
                 / ws.sum(dim=(1, 2)).clamp_min(1)
             )  
             
-            grid_aug = (
-                (grid_aug * ws_aug).sum(dim=(1, 2))
-                / ws_aug.sum(dim=(1, 2)).clamp_min(1)
-            )  
-            return grid, grid_aug
+            return grid
