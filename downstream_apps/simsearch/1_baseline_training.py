@@ -29,6 +29,10 @@ from workshop_infrastructure.models.helio_spectformer import HelioSpectFormer
 from downstream_apps.simsearch.models.simsearch_baseline import SimSuryaModel
 from downstream_apps.simsearch.lightning_modules.pl_simsearch_baseline import SimsearchLightningModule
 from downstream_apps.simsearch.metrics.simsearch_metrics import SimsearchMetrics
+from workshop_infrastructure.utils import (
+    load_pretrained_weights,
+    apply_peft_lora,
+)
 torch.set_float32_matmul_precision('medium')
 
 cfg = load_flare_config("./configs/config_script_beastie.yaml")
@@ -92,9 +96,9 @@ basemodel = HelioSpectFormer(
         checkpoint_layers=config["model"]["checkpoint_layers"],
         rpe=config["model"]["rpe"],
         ensemble=config["model"]["ensemble"],
-        nglo=config["model"]["nglo"],
         finetune=False,
     )
+load_pretrained_weights(basemodel, cfg.model.pretrained_path)
 model = SimSuryaModel(basemodel)
 L.seed_everything(42, workers=True)
 
@@ -106,7 +110,7 @@ lit_model = SimsearchLightningModule(model, metrics,
                                      lr=cfg.learning_rate,
                                      batch_size=2)
 project_name = cfg.wandb_project
-run_name = "baseline_simsearch_bs2"  # give your run a descriptive name
+run_name = "baseline_simsearch_bs6"  # give your run a descriptive name
 
 wandb_logger = WandbLogger(
     entity=cfg.wandb_entity,  # set wandb_entity in the config; null = personal account
@@ -133,7 +137,7 @@ trainer = L.Trainer(
 
 train_data_loader = DataLoader(
                 dataset=train_dataset,
-                batch_size=2,
+                batch_size=6,
                 num_workers=0
             )
 trainer.fit(lit_model, train_data_loader)
