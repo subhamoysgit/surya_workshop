@@ -116,10 +116,22 @@ class SimSearchSDataset(HelioNetCDFDataset):
         ss_t_0, coords_t = perform_augmentation(ss[:,0,:,:], coords, np.array(self.ADDICT[key]).reshape(2, 2)) #Xt=AX
         ss_t_1, _ = perform_augmentation(ss[:,1,:,:], coords, np.array(self.ADDICT[key]).reshape(2, 2))
         ss_t = np.stack((ss_t_0, ss_t_1), axis=1)
-        return {'ts':ss, 
-                'ts_aug': ss_t,
+        
+        dict_ = {'ts':ss,
                 'bbox':coords,
-                'bbox_aug':coords_t, 
                 'time_delta_input': sample['time_delta_input'],
-                'key': key} 
+                'key': 'identity'}
+        dict_aug = {'ts':ss_t,
+                'bbox':coords_t,
+                'time_delta_input': sample['time_delta_input'],
+                'key': key}
+        
+        return dict_, dict_aug
+        
+        # return {'ts':ss, 
+        #         'ts_aug': ss_t,
+        #         'bbox':coords,
+        #         'bbox_aug':coords_t, 
+        #         'time_delta_input': sample['time_delta_input'],
+        #         'key': key} 
                 #'tstep': timestep}
