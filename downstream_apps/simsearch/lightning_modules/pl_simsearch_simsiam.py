@@ -136,7 +136,7 @@ class SimSiamLightningModule(L.LightningModule):
             raise ValueError("loss_dict is empty; cannot compute a scalar loss.")
         return loss
 
-    def forward(self, batch: dict) -> torch.Tensor:
+    def forward(self, x: dict) -> torch.Tensor:
         """
         Forward pass used by Lightning and by explicit calls in steps.
 
@@ -150,7 +150,7 @@ class SimSiamLightningModule(L.LightningModule):
         torch.Tensor
             Model predictions for the batch.
         """
-        return self.model(batch)
+        return self.model(x)
     
 
     def training_step(self, batch: Dict[str, Any], batch_idx: int) -> torch.Tensor:
@@ -183,18 +183,19 @@ class SimSiamLightningModule(L.LightningModule):
         torch.Tensor
             The scalar training loss used for backpropagation.
         """
-
+        batch1, batch2 = batch
         if self.preprocess_fn is not None:
-            batch = self.preprocess_fn(batch)
+            batch1 = self.preprocess_fn(batch1)
+            batch2 = self.preprocess_fn(batch2)
 
-        z0, z1, p0, p1 = self(batch)
-
-        loss = -0.5 * (torch.nn.functional.cosine_similarity(p0, z1.detach(), dim=-1).mean() + 
-                       torch.nn.functional.cosine_similarity( p1, z0.detach(), dim=-1).mean())
+        z0, p0 = self(batch1)
+        z1, p1 = self(batch2)
+        loss = -0.5 * (torch.nn.functional.cosine_similarity(p0, z1, dim=-1).mean() + 
+                       torch.nn.functional.cosine_similarity( p1, z0, dim=-1).mean())
 
         with torch.no_grad():
-            z0_norm = torch.nn.functional.normalize(z0.detach(), dim=-1)
-            z1_norm = torch.nn.functional.normalize(z1.detach(), dim=-1)
+            z0_norm = torch.nn.functional.normalize(z0, dim=-1)
+            z1_norm = torch.nn.functional.normalize(z1, dim=-1)
 
             std = 0.5 * (
                 z0_norm.std(dim=0, unbiased=False).mean()
@@ -210,7 +211,7 @@ class SimSiamLightningModule(L.LightningModule):
             on_step=True,
             on_epoch=True,
             prog_bar=True,
-            batch_size=batch["ts"].shape[0],
+            batch_size=batch1["ts"].shape[0],
             sync_dist=True,)
         return loss
 
