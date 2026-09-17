@@ -99,7 +99,9 @@ class SimSuryaModel(nn.Module):
         
         with torch.no_grad():
             token = self.model.embedding(x['ts'][:,:-1,...], x['time_delta_input'])
+            token = self.model.backbone(token)
             token_aug = self.model.embedding(x['ts_aug'][:,:-1,...], x['time_delta_input'])
+            token_aug = self.model.backbone(token_aug)
             grid = token.reshape(-1, gy, gx, token.shape[-1])
             grid_aug = token_aug.reshape(-1, gy, gx, token_aug.shape[-1])
             if self.bbox:
