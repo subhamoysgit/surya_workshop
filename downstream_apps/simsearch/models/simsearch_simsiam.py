@@ -106,40 +106,19 @@ class SimSuryaModel(nn.Module):
                           stride=16,)[:, 0]  # (B, gy, gx)
         ws = (ws > 0.5).to(torch.float32)
         ws = ws.unsqueeze(-1)  
-        
-        mask_aug = x['ts_aug'][:, -1, 0, :, :]
-        ws_aug = F.avg_pool2d(mask_aug[:, None].float(),
-                              kernel_size=16,
-                              stride=16,)[:, 0]  # (B, gy, gx)
-        ws_aug = (ws_aug > 0.5).to(torch.float32)
-        ws_aug = ws_aug.unsqueeze(-1) 
-
         token = self.backbone.embedding(x['ts'][:,:-1,...], x['time_delta_input'])
         token = self.backbone.backbone(token)
-        token_aug = self.backbone.embedding(x['ts_aug'][:,:-1,...], x['time_delta_input'])
-        token_aug = self.backbone.backbone(token_aug)
         grid = token.reshape(-1, gy, gx, token.shape[-1])
-        grid_aug = token_aug.reshape(-1, gy, gx, token_aug.shape[-1])
         
        # (B, gy, gx, 1)
         grid = (
             (grid * ws).sum(dim=(1, 2))
             / ws.sum(dim=(1, 2)).clamp_min(1)
         )  
+
+        f = grid.flatten(start_dim=1)
+        z = self.head_projection(f)
+        p = self.head_prediction(z)
+        z = z.detach()
         
-        grid_aug = (
-            (grid_aug * ws_aug).sum(dim=(1, 2))
-            / ws_aug.sum(dim=(1, 2)).clamp_min(1)
-        )  
-        
-        f0 = grid.flatten(start_dim=1)
-        z0 = self.head_projection(f0)
-        p0 = self.head_prediction(z0)
-        z0 = z0.detach()
-        
-        f1 = grid_aug.flatten(start_dim=1)
-        z1 = self.head_projection(f1)
-        p1 = self.head_prediction(z1)
-        z1 = z1.detach()
-        
-        return z0, z1, p0, p1
+        return z, p
